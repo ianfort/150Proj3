@@ -14,7 +14,10 @@ Thread::Thread()
 Thread::Thread(const TVMThreadPriority &pri, const TVMThreadState &st, TVMThreadIDRef tid, uint8_t *sb,
                TVMMemorySize ss, const ThreadEntry &entryFunc, void *p)
 {
-  Thread();
+  id = nextID;
+  nextID++;
+  heldMutex = new vector<Mutex*>;
+  waiting = NULL;
   priority = pri;
   state = st;
   *tid = id;
@@ -38,7 +41,7 @@ Thread::~Thread()
 int Thread::acquireMutex(Mutex* mtx, TVMTick timeout)
 {
   waiting = NULL;
-  if (!findMutex(mtx->getID()) )
+  if (!findMutex(mtx->getID()))
   {
     if (mtx->acquire(this, timeout) == ACQUIRE_SUCCESS)
     {
@@ -60,8 +63,8 @@ void Thread::decrementTicks()
     state = VM_THREAD_STATE_READY;
     if (waiting)
     {
-      ;
-    }//remove from mutex wait queue
+      waiting->waitTimeout(this);
+    }//stop waiting on mutex due to TIMEOUT
     readyQ[priority]->push(this);
   }//if no need to be asleep
   if (ticks < 0)
@@ -126,13 +129,25 @@ volatile int Thread::getTicks()
 }//volatile int Thread::getTicks()
 
 
+void Thread::releaseAllMutex()
+{
+  Mutex* mtx;
+  while (!heldMutex->empty())
+  {
+    mtx = heldMutex->back();
+    mtx->release();
+    heldMutex->pop_back();
+  }
+}//void Thread::releaseAllMutex()
+
+
 bool Thread::releaseMutex(TVMMutexID id)
 {
   for (vector<Mutex*>::iterator itr = heldMutex->begin() ; itr != heldMutex->end() ; itr++)
   {
     if ((*itr)->getID() == id)
     {
-      itr->release();
+      (*itr)->release();
       heldMutex->erase(itr);
       return true;
     }//if the mutex is found, release it
@@ -176,5 +191,12 @@ void Thread::setTicks(volatile int newticks)
   ticks = newticks;
 }//void Thread::setTicks(int newticks)
 
+
+void Thread::stopWaiting()
+{
+  waiting = NULL;
+  state = VM_THREAD_STATE_READY;  
+  readyQ[priority]->push(this);
+}//void Thread::stopWaiting()
 
 

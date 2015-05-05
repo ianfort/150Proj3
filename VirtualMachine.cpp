@@ -13,8 +13,8 @@ void timerISR(void*);
 void scheduler();
 void skeleton(void* tibia);
 void idle(void*);
+Mutex* findMutex(TVMMutexID id);
 
-TVMThreadID nextID; //increment every time a thread is created. Decrement never.
 vector<Thread*> *threads;
 Thread *tr, *mainThread, *pt;
 queue<Thread*> *readyQ[NUM_RQS];
@@ -23,7 +23,6 @@ vector<Mutex*> *mutexes;
 
 TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
 {
-  nextID = 0;
   TVMThreadID idletid;
 
   TVMMainEntry mainFunc = VMLoadModule(argv[0]);
@@ -190,7 +189,7 @@ TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
   Mutex* mtx = new Mutex;
-  mutexref = mtx->getID();
+  *mutexref = mtx->getID();
   mutexes->push_back(mtx);
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
@@ -207,7 +206,7 @@ TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_ID;
   }
-  else if (tick == VM_TIMEOUT_IMMEDIATE)
+  else if (timeout == VM_TIMEOUT_IMMEDIATE)
   {
     acquireState = tr->acquireMutex(mtx, timeout);
     if (acquireState != ACQUIRE_SUCCESS)
@@ -220,7 +219,6 @@ TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
       MachineResumeSignals(&sigs);
       return VM_STATUS_ERROR_INVALID_ID;
     }
-
     MachineResumeSignals(&sigs);
     return VM_STATUS_SUCCESS;
   }
@@ -233,9 +231,85 @@ TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
       scheduler();
     }
   }//works for both finite and infinite timeouts
+  if (!tr->findMutex(mutex))
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_FAILURE;
+  }//case: timeout failure
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMutexAcquire(TVMMutexID mutex, TVMTick timeout)
+
+
+TVMStatus VMMutexDelete(TVMMutexID mutex)
+{
+  MachineSuspendSignals(&sigs);
+  vector<Mutex*>::iterator mtx;
+  Mutex* tmp;
+  for (vector<Mutex*>::iterator itr = mutexes->begin(); itr != mutexes->end(); itr++ )
+  {
+    if ((*itr)->getID() == mutex)
+    {
+      mtx = itr;
+    }
+  }
+  if (mtx == mutexes->end())
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_ID;
+  }
+  tmp = *mtx;
+  if (tmp->getOwner())
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_STATE;
+  }
+  mutexes->erase(mtx);
+  delete tmp;
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}
+
+
+TVMStatus VMMutexQuery(TVMMutexID mutex, TVMThreadIDRef ownerref)
+{
+  MachineSuspendSignals(&sigs);
+  Mutex* mtx;
+  if (!ownerref)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  mtx = findMutex(mutex);
+  if ( !mtx )
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_ID;
+  }
+  ownerref = mtx->getOwner()->getIDRef();
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}
+
+
+TVMStatus VMMutexRelease(TVMMutexID mutex)
+{
+  MachineSuspendSignals(&sigs);
+  if (!findMutex(mutex))
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_ID;
+  }
+  if (!tr->findMutex(mutex))
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_STATE;
+  }
+  tr->releaseMutex(mutex);
+  scheduler();
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}//TVMStatus VMMutexRelease(TVMMutexID mutex)
 
 
 TVMStatus VMThreadSleep(TVMTick tick)
@@ -405,7 +479,7 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
     return VM_STATUS_ERROR_INVALID_STATE;
   }//requested thread already dead
   term->setState(VM_THREAD_STATE_DEAD);
-  //release all of term's mutexes here
+  term->releaseAllMutex();
   target = readyQ[term->getPriority()]->size();
   for (int i = 0; i < target; i++)
   {
@@ -480,6 +554,7 @@ void skeleton(void *tibia)
 {
   TVMThreadEntry func = ((Tibia*)tibia)->getEntry();
   func(((Tibia*)tibia)->getParam());
+  delete (Tibia*)tibia;
   VMThreadTerminate(*(tr->getIDRef()));
 }//3spoopy5me
 
