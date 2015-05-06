@@ -12,7 +12,11 @@ OBJDIR=.
 BINDIR=.
 APPDIR=./apps
 
-OBJS=$(OBJDIR)/Machine.o \
+OBJS=$(OBJDIR)/Thread.o \
+     $(OBJDIR)/Mutex.o \
+     $(OBJDIR)/Tibia.o \
+     $(OBJDIR)/MPool.o \
+     $(OBJDIR)/Machine.o \
      $(OBJDIR)/VirtualMachineUtils.o \
      $(OBJDIR)/VirtualMachine.o \
      $(OBJDIR)/main.o

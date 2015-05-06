@@ -20,8 +20,10 @@ Thread *tr, *mainThread, *pt;
 queue<Thread*> *readyQ[NUM_RQS];
 sigset_t sigs;
 vector<Mutex*> *mutexes;
+MPool *heap;
+const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
-TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
+TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemorySize sharedsize, int argc, char *argv[])
 {
   TVMThreadID idletid;
 
@@ -31,12 +33,15 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
     return VM_STATUS_FAILURE;
   }//if mainFunc doesn't load, kill yourself
   
+
   threads = new vector<Thread*>;
   mutexes = new vector<Mutex*>;
   for (int i = 0; i < NUM_RQS; i++)
   {
     readyQ[i] = new queue<Thread*>;
   }//allocate memory for ready queues
+  heap = new MPool(heapsize, sharedsize);
+
   mainThread = new Thread;
   mainThread->setPriority(VM_THREAD_PRIORITY_NORMAL);
   mainThread->setState(VM_THREAD_STATE_RUNNING);
@@ -44,7 +49,7 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
   tr = mainThread;
   VMThreadCreate(idle, NULL, 0x100000, VM_THREAD_PRIORITY_NIL, &idletid);
   VMThreadActivate(idletid);
-  MachineInitialize(machinetickms);
+  MachineInitialize(machinetickms, sharedsize);
   MachineRequestAlarm((tickms*1000), timerISR, NULL);
   MachineEnableSignals();
 
@@ -55,20 +60,19 @@ TVMStatus VMStart(int tickms, int machinetickms, int argc, char *argv[])
   {
     if (*itr)
     {
-      delete *itr;
+      VMThreadTerminate(*itr);
     }//delete contents of threads
   }//for all threads
-  
   for (vector<Mutex*>::iterator itr = mutexes->begin(); itr != mutexes->end(); itr++)
   {
     if (*itr)
     {
-      delete *itr;
+      VMMutexDelete(*itr);
     }//delete contents of threads
   }//for all threads
-
   delete threads;
   delete mutexes;
+  delete heap;
   return VM_STATUS_SUCCESS;
 } //VMStart
 
