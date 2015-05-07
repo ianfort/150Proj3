@@ -403,9 +403,8 @@ TVMStatus VMThreadActivate(TVMThreadID thread)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_STATE;
-  }//if thread is already dead
+  }//if thread isn't dead
   nt->setState(VM_THREAD_STATE_READY);
-  nt->getEntry();
   readyQ[nt->getPriority()]->push(nt);
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
