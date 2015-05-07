@@ -1,6 +1,7 @@
 #include "Thread.h"
 #include "Tibia.h"
 #include "Mutex.h"
+#include "Heap.h"
 
 
 
@@ -20,7 +21,7 @@ Thread *tr, *mainThread, *pt;
 queue<Thread*> *readyQ[NUM_RQS];
 sigset_t sigs;
 vector<Mutex*> *mutexes;
-MPool *heap;
+Heap *heap;
 const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
 TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemorySize sharedsize, int argc, char *argv[])
@@ -40,7 +41,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   {
     readyQ[i] = new queue<Thread*>;
   }//allocate memory for ready queues
-  heap = new MPool(heapsize, sharedsize);
+  heap = new Heap(heapsize, sharedsize);
 
   mainThread = new Thread;
   mainThread->setPriority(VM_THREAD_PRIORITY_NORMAL);
@@ -60,14 +61,14 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   {
     if (*itr)
     {
-      VMThreadTerminate(*itr);
+      VMThreadTerminate(*(*itr)->getIDRef());
     }//delete contents of threads
   }//for all threads
   for (vector<Mutex*>::iterator itr = mutexes->begin(); itr != mutexes->end(); itr++)
   {
     if (*itr)
     {
-      VMMutexDelete(*itr);
+      VMMutexDelete((*itr)->getID());
     }//delete contents of threads
   }//for all threads
   delete threads;
