@@ -21,12 +21,16 @@ Thread *tr, *mainThread, *pt;
 queue<Thread*> *readyQ[NUM_RQS];
 sigset_t sigs;
 vector<Mutex*> *mutexes;
-Heap *heap;
+// Heap *heap;
+uint8_t *heap;
+vector<MPCB*> *pools;
+
 const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
 TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemorySize sharedsize, int argc, char *argv[])
 {
   TVMThreadID idletid;
+  unsigned int VMIndex = sharedsize;
 
   TVMMainEntry mainFunc = VMLoadModule(argv[0]);
   if (!mainFunc)
@@ -41,7 +45,15 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   {
     readyQ[i] = new queue<Thread*>;
   }//allocate memory for ready queues
-  heap = new Heap(heapsize, sharedsize);
+
+  // Create heap, and allocate shared space within it.
+  heap = new uint8_t[heapsize];
+  pools->push_back(new MPCB(heap, heapsize));
+  (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->allocate(sharedsize); // Should return slot 0
+  pools->push_back(new MPCB(heap, sharedsize));
+  (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->insertSubBlock((*pools)[1]));
+  // pools->push_back(new MPCB(heap + sharedsize, heapsize - sharedsize));
+  // 
 
   mainThread = new Thread;
   mainThread->setPriority(VM_THREAD_PRIORITY_NORMAL);

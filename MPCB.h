@@ -1,7 +1,13 @@
 #ifndef MPCB_H
 #define MPCB_H
 
-#include "Heap.h"
+#include <vector>
+#include <stdint.h>
+#include <cstddef>
+
+//#define MEMHEAP 0
+//#define MEMPOOL 1
+//#define MEMBLOCK 2
 
 /*
 #ifndef HEAP_H
@@ -23,7 +29,11 @@ public:
   ~Heap();
   uint8_t* allocatePool(unsigned int stackSize);
 };
-*/ 
+*/
+
+// enum MemLevel {MEMHEAP, MEMPOOL, MEMBLOCK};
+ 
+using namespace std;
 
 class MPCB
 {
@@ -32,13 +42,22 @@ class MPCB
   uint8_t *start;
   unsigned int size;
   bool *isFree;
-
+//  MemLevel level;
+  
+  vector<MPCB*> *subBlocks;
 public:
-  MPCB(unsigned int ident, uint8_t *pStrt, unsigned int plSz);
+  MPCB(uint8_t *plStrt, unsigned int plSz /*, MemLevel lvl */);
   ~MPCB();
 
-  uint8_t* allocateMem(unsigned int size);
-  void deallocateMem()
-};
+  uint8_t* allocate(unsigned int size);
+  void deallocate(unsigned int ident);
 
-#endif
+  MPCB* findSubBlock(unsigned int ident);
+  void insertSubBlock(MPCB* m);
+  void removeSubBlock(ident);
+
+  unsigned int getID();
+  uint8_t* getStart();
+  unsigned int getSize();
+  bool checkFree(unsigned int index);
+};
