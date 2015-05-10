@@ -36,7 +36,7 @@ Heap::~Heap()
 }
 
 
-uint8_t* Heap::assignMP(unsigned int stackSize)
+uint8_t* Heap::allocatePool(unsigned int stackSize)
 {
   unsigned int freeStart = -1;
   bool checkMode = false;

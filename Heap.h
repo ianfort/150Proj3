@@ -15,8 +15,7 @@ class Heap
 public:
   Heap(unsigned int hpSz, unsigned int shSz);
   ~Heap();
-  uint8_t* assignMP(unsigned int stackSize);
-  
+  uint8_t* allocatePool(unsigned int stackSize);
 };
 
 

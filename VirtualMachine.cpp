@@ -581,3 +581,17 @@ Mutex* findMutex(TVMMutexID id)
   return NULL;
 }
 
+
+// START MEMORY POOL FUNCTIONS
+
+TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
+{
+}
+
+TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
+{
+  heap->
+}
+
+// END MEMORY POOL FUNCTIONS
+
