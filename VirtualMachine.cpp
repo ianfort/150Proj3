@@ -24,13 +24,13 @@ vector<Mutex*> *mutexes;
 // Heap *heap;
 uint8_t *heap;
 vector<MPCB*> *pools;
+uint8_t *VMPoolStart;
 
 const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
 TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemorySize sharedsize, int argc, char *argv[])
 {
   TVMThreadID idletid;
-  unsigned int VMIndex = sharedsize;
 
   TVMMainEntry mainFunc = VMLoadModule(argv[0]);
   if (!mainFunc)
@@ -48,6 +48,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
 
   // Create heap, and allocate shared space within it.
   heap = new uint8_t[heapsize];
+  VMPoolStart = &heap[sharedsize];
   pools->push_back(new MPCB(heap, heapsize));
   (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->allocate(sharedsize); // Should return slot 0
   pools->push_back(new MPCB(heap, sharedsize));
@@ -598,12 +599,35 @@ Mutex* findMutex(TVMMutexID id)
 
 TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
 {
+  MachineSuspendSignals(&sigs);
+
+  /*
+  uint8_t *createdStart;
+  createdStart = (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->allocate(size);
+  (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->insertSubBlock(temp);
+  *((uint8_t*)base) = createdStart;
+  */
+  
+  MachineResumeSignals(&sigs);
 }
+
 
 TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
 {
-  heap->
+  MachineSuspendSignals(&sigs);
+  MPCB* temp;
+  if (!base || !memory)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  temp = new MPCB(createdStart, size);
+  pools->push_back(temp);
+  *memory = &(temp->getID());
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
 }
-
 // END MEMORY POOL FUNCTIONS
+
+
 
