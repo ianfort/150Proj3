@@ -11,6 +11,7 @@
 #include "Machine.h"
 #include <iostream>
 #include <queue>
+#include <cstring>
 #include "Mutex.h"
 
 using namespace std;

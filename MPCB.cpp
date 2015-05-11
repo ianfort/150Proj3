@@ -32,7 +32,6 @@ MPCB::MPCB(uint8_t *plStrt, unsigned int plSz)
 
 MPCB::~MPCB()
 {
-  delete heap;
   delete isFree;
   delete subBlocks;
 }
@@ -83,9 +82,8 @@ uint8_t* MPCB::allocate(unsigned int spaceSize)
     isFree[i] = false;
   }
 
-  return &heap[freeStart]; //return location of start of MPool
+  return &start[freeStart]; //return location of start of MPool
 }
-#endif
 
 
 uint8_t* MPCB::deallocate(unsigned int ident)
@@ -93,12 +91,12 @@ uint8_t* MPCB::deallocate(unsigned int ident)
   unsigned int freeStart;
   MPCB* toRemove = findSubBlock(ident);
   freeStart = (unsigned int)(toRemove->getStart() - start);
-  for (i = freeStart ; i < freeStart + toRemove->getSize() ; i++)
+  for (unsigned int i = freeStart ; i < freeStart + toRemove->getSize() ; i++)
   {
     isFree[i] = true;
   }
 
-  return &isFree[freeStart];
+  return &start[freeStart];
 }
 
 
@@ -134,25 +132,25 @@ void MPCB::removeSubBlock(unsigned int ident)
 }
 
 
-unsigned int getID()
+unsigned int MPCB::getID()
 {
   return id;
 }
 
 
-uint8_t* getStart()
+uint8_t* MPCB::getStart()
 {
   return start;
 }
 
 
-unsigned int getSize()
+unsigned int MPCB::getSize()
 {
   return size;
 }
 
 
-bool checkFree(unsigned int index)
+bool MPCB::checkFree(unsigned int index)
 {
   return isFree[index];
 }

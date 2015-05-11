@@ -2,6 +2,7 @@
 #include "Tibia.h"
 #include "Mutex.h"
 #include "Heap.h"
+#include "MPCB.h"
 
 
 
@@ -25,12 +26,14 @@ vector<Mutex*> *mutexes;
 uint8_t *heap;
 vector<MPCB*> *pools;
 uint8_t *VMPoolStart;
+void* sharebase;
 
 const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
 TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemorySize sharedsize, int argc, char *argv[])
 {
   TVMThreadID idletid;
+  TVMMemorySize share = (sharedsize+0xFFF)&(~0xFFF);
 
   TVMMainEntry mainFunc = VMLoadModule(argv[0]);
   if (!mainFunc)
@@ -46,15 +49,9 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
     readyQ[i] = new queue<Thread*>;
   }//allocate memory for ready queues
 
-  // Create heap, and allocate shared space within it.
+  // Create heap.
   heap = new uint8_t[heapsize];
-  VMPoolStart = &heap[sharedsize];
   pools->push_back(new MPCB(heap, heapsize));
-  (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->allocate(sharedsize); // Should return slot 0
-  pools->push_back(new MPCB(heap, sharedsize));
-  (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->insertSubBlock((*pools)[1]));
-  // pools->push_back(new MPCB(heap + sharedsize, heapsize - sharedsize));
-  // 
 
   mainThread = new Thread;
   mainThread->setPriority(VM_THREAD_PRIORITY_NORMAL);
@@ -63,7 +60,11 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   tr = mainThread;
   VMThreadCreate(idle, NULL, 0x100000, VM_THREAD_PRIORITY_NIL, &idletid);
   VMThreadActivate(idletid);
-  MachineInitialize(machinetickms, sharedsize);
+  if (!(sharebase = MachineInitialize(machinetickms, share)))
+    return 1; //screw cleanup. Kill yourself if machine initialize fails.
+  // Create MPCB for shared space
+  pools->push_back(new MPCB((uint8_t*)sharebase, share));
+
   MachineRequestAlarm((tickms*1000), timerISR, NULL);
   MachineEnableSignals();
 
@@ -141,7 +142,9 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to have NULL pointers for where we put the data
-  MachineFileWrite(filedescriptor, data, *length, fileCallback, (void*)tr);
+  //errors if length > 512 bytes
+  memcpy(sharebase, data, *length);
+  MachineFileWrite(filedescriptor, sharebase, *length, fileCallback, (void*)tr);
   tr->setState(VM_THREAD_STATE_WAITING);
   scheduler();
   if(tr->getcd() < 0)
@@ -609,6 +612,7 @@ TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void 
   */
   
   MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
 }
 
 
@@ -621,9 +625,11 @@ TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef 
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
+  uint8_t *createdStart;
+  createdStart = (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->allocate(size);
   temp = new MPCB(createdStart, size);
   pools->push_back(temp);
-  *memory = &(temp->getID());
+  *memory = (temp->getID());
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }

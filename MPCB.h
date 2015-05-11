@@ -50,14 +50,16 @@ public:
   ~MPCB();
 
   uint8_t* allocate(unsigned int size);
-  void deallocate(unsigned int ident);
+  uint8_t* deallocate(unsigned int ident);
 
   MPCB* findSubBlock(unsigned int ident);
   void insertSubBlock(MPCB* m);
-  void removeSubBlock(ident);
+  void removeSubBlock(unsigned int ident);
 
   unsigned int getID();
   uint8_t* getStart();
   unsigned int getSize();
   bool checkFree(unsigned int index);
 };
+
+#endif
