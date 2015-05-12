@@ -51,6 +51,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
 
   // Create heap.
   heap = new uint8_t[heapsize];
+  pools = new vector<MPCB*>;
   pools->push_back(new MPCB(heap, heapsize));
 
   mainThread = new Thread;
@@ -64,7 +65,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
     return 1; //screw cleanup. Kill yourself if machine initialize fails.
   // Create MPCB for shared space
   pools->push_back(new MPCB((uint8_t*)sharebase, share));
-
+  
   MachineRequestAlarm((tickms*1000), timerISR, NULL);
   MachineEnableSignals();
 
@@ -75,7 +76,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   {
     if (*itr)
     {
-      VMThreadTerminate(*(*itr)->getIDRef());
+      delete *itr;
     }//delete contents of threads
   }//for all threads
   for (vector<Mutex*>::iterator itr = mutexes->begin(); itr != mutexes->end(); itr++)
@@ -137,16 +138,26 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
 {
   MachineSuspendSignals(&sigs);
   tr->setcd(-739);
+  int lenleft = *length;
+  char* localdata = new char[*length + 1];
+  strcpy(localdata, (char*)data);
   if (!data || !length)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to have NULL pointers for where we put the data
   //errors if length > 512 bytes
-  memcpy(sharebase, data, *length);
-  MachineFileWrite(filedescriptor, sharebase, *length, fileCallback, (void*)tr);
-  tr->setState(VM_THREAD_STATE_WAITING);
-  scheduler();
+  for (int i = 0; lenleft >= 0 ; i++, lenleft -= 256)
+  {
+    if (lenleft >= 256)
+      memcpy(sharebase, (void*)localdata[i*256], 256);
+    else
+      memcpy(sharebase, data, *length);
+    MachineFileWrite(filedescriptor, sharebase, *length, fileCallback, (void*)tr);
+    tr->setState(VM_THREAD_STATE_WAITING);
+    scheduler();
+  }
+  delete localdata;
   if(tr->getcd() < 0)
   {
     MachineResumeSignals(&sigs);
