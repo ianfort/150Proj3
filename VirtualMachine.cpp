@@ -1,7 +1,6 @@
 #include "Thread.h"
 #include "Tibia.h"
 #include "Mutex.h"
-//#include "Heap.h"
 #include "MPCB.h"
 
 
@@ -41,7 +40,6 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   {
     return VM_STATUS_FAILURE;
   }//if mainFunc doesn't load, kill yourself
-  
 
   threads = new vector<Thread*>;
   mutexes = new vector<Mutex*>;
@@ -64,28 +62,21 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   VMThreadActivate(idletid);
   if (!(sharebase = MachineInitialize(machinetickms, share)))
     return 1; //screw cleanup. Kill yourself if machine initialize fails.
-  // Create MPCB for shared space
-  pools->push_back(new MPCB((uint8_t*)sharebase, share));
-  
+  pools->push_back(new MPCB((uint8_t*)sharebase, share)); //Create MPCB for shared space
   MachineRequestAlarm((tickms*1000), timerISR, NULL);
   MachineEnableSignals();
 
   mainFunc(argc, argv);
   VMUnloadModule();
   MachineTerminate();
-  for (vector<Thread*>::iterator itr = threads->begin(); itr != threads->end(); itr++)
+  for (vector<Thread*>::iterator itr = (threads->begin()+1); itr != threads->end(); itr++)
   {
-    if (*itr)
-    {
-      delete *itr;
-    }//delete contents of threads
+    VMThreadTerminate(*((*itr)->getIDRef()));
+    delete *itr;
   }//for all threads
   for (vector<Mutex*>::iterator itr = mutexes->begin(); itr != mutexes->end(); itr++)
   {
-    if (*itr)
-    {
-      VMMutexDelete((*itr)->getID());
-    }//delete contents of threads
+    VMMutexDelete((*itr)->getID());
   }//for all threads
   delete threads;
   delete mutexes;
@@ -93,7 +84,9 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   return VM_STATUS_SUCCESS;
 } //VMStart
 
-
+//***************************************************************************//
+// START VMFILE FUNCTIONS                                                    //
+//***************************************************************************//
 TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescriptor)
 {
   MachineSuspendSignals(&sigs);
@@ -211,8 +204,12 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMFileseek(int filedescriptor, int offset, int whence, int *newoffset)
-
-
+//***************************************************************************//
+// END VMFILE FUNCTIONS                                                   //
+//***************************************************************************//
+//***************************************************************************//
+// START VMMUTEX FUNCTIONS                                                   //
+//***************************************************************************//
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
 {
   MachineSuspendSignals(&sigs);
@@ -343,8 +340,12 @@ TVMStatus VMMutexRelease(TVMMutexID mutex)
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMutexRelease(TVMMutexID mutex)
-
-
+//***************************************************************************//
+// END VMMUTEX FUNCTIONS                                                     //
+//***************************************************************************//
+//***************************************************************************//
+// START VMTHREAD FUNCTIONS                                                  //
+//***************************************************************************//
 TVMStatus VMThreadSleep(TVMTick tick)
 {
   MachineSuspendSignals(&sigs);
@@ -524,8 +525,12 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMThreadTerminate(TVMThreadID thread)
-
-// START MEMORY POOL FUNCTIONS
+//***************************************************************************//
+// END VMTHREAD FUNCTIONS                                                    //
+//***************************************************************************//
+//***************************************************************************//
+// START MEMORY POOL FUNCTIONS                                               //
+//***************************************************************************//
 TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
 {
   MachineSuspendSignals(&sigs);
@@ -588,7 +593,7 @@ TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
   
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
-}
+}//TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
 
 
 TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
@@ -604,8 +609,12 @@ TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef 
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
-// END MEMORY POOL FUNCTIONS
-
+//***************************************************************************//
+// END MEMORY POOL FUNCTIONS                                                 //
+//***************************************************************************//
+//***************************************************************************//
+// START UTILITY FUNCTIONS                                                   //
+//***************************************************************************//
 void fileCallback(void* calldata, int result)
 {
   Thread* cbt = (Thread*)calldata;
@@ -687,7 +696,7 @@ Mutex* findMutex(TVMMutexID id)
     }
   }
   return NULL;
-}
+}//Mutex* findMutex(TVMMutexID id)
 
 
 MPCB* findMemPool(TVMMemoryPoolID id)
@@ -700,4 +709,8 @@ MPCB* findMemPool(TVMMemoryPoolID id)
     }
   }
   return NULL;
-}
+}//MPCB* findMemPool(TVMMemoryPoolID id)
+//***************************************************************************//
+// END UTILITY FUNCTIONS                                                     //
+//***************************************************************************//
+
