@@ -93,7 +93,9 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   return VM_STATUS_SUCCESS;
 } //VMStart
 
-
+//***************************************************************************//
+// START VMFILE FUNCTIONS                                                    //
+//***************************************************************************//
 TVMStatus VMFileOpen(const char *filename, int flags, int mode, int *filedescriptor)
 {
   MachineSuspendSignals(&sigs);
@@ -211,8 +213,12 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMFileseek(int filedescriptor, int offset, int whence, int *newoffset)
-
-
+//***************************************************************************//
+// END VMFILE FUNCTIONS                                                   //
+//***************************************************************************//
+//***************************************************************************//
+// START VMMUTEX FUNCTIONS                                                   //
+//***************************************************************************//
 TVMStatus VMMutexCreate(TVMMutexIDRef mutexref)
 {
   MachineSuspendSignals(&sigs);
@@ -343,8 +349,12 @@ TVMStatus VMMutexRelease(TVMMutexID mutex)
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMutexRelease(TVMMutexID mutex)
-
-
+//***************************************************************************//
+// END VMMUTEX FUNCTIONS                                                     //
+//***************************************************************************//
+//***************************************************************************//
+// START VMTHREAD FUNCTIONS                                                  //
+//***************************************************************************//
 TVMStatus VMThreadSleep(TVMTick tick)
 {
   MachineSuspendSignals(&sigs);
@@ -524,8 +534,12 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMThreadTerminate(TVMThreadID thread)
-
-// START MEMORY POOL FUNCTIONS
+//***************************************************************************//
+// END VMTHREAD FUNCTIONS                                                    //
+//***************************************************************************//
+//***************************************************************************//
+// START MEMORY POOL FUNCTIONS                                               //
+//***************************************************************************//
 TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
 {
   MachineSuspendSignals(&sigs);
@@ -603,7 +617,7 @@ TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
   
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
-}
+}//TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
 
 
 TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
@@ -619,8 +633,12 @@ TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef 
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
-// END MEMORY POOL FUNCTIONS
-
+//***************************************************************************//
+// END MEMORY POOL FUNCTIONS                                                 //
+//***************************************************************************//
+//***************************************************************************//
+// START UTILITY FUNCTIONS                                                   //
+//***************************************************************************//
 void fileCallback(void* calldata, int result)
 {
   Thread* cbt = (Thread*)calldata;
@@ -702,7 +720,7 @@ Mutex* findMutex(TVMMutexID id)
     }
   }
   return NULL;
-}
+}//Mutex* findMutex(TVMMutexID id)
 
 
 MPCB* findMemPool(TVMMemoryPoolID id)
@@ -715,4 +733,8 @@ MPCB* findMemPool(TVMMemoryPoolID id)
     }
   }
   return NULL;
-}
+}//MPCB* findMemPool(TVMMemoryPoolID id)
+//***************************************************************************//
+// END UTILITY FUNCTIONS                                                     //
+//***************************************************************************//
+
