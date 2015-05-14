@@ -7,8 +7,8 @@ MPCB::MPCB(uint8_t *plStrt, unsigned int plSz)
   id = idInc;
   start = plStrt;
   size = plSz;
-  //allocated = new vector<MemBlock>;
-  subBlocks = new vector<MPCB*>;
+  allocated = new vector<MemBlock>;
+  //subBlocks = new vector<MPCB*>;
 
   idInc++;
 /* heap = new uint8_t[hpSz];
@@ -28,65 +28,63 @@ MPCB::MPCB(uint8_t *plStrt, unsigned int plSz)
 
 MPCB::~MPCB()
 {
-  delete subBlocks;
+  delete allocated;
 }
 
 
-MPCB* MPCB::allocate(unsigned int spaceSize)
+uint8_t* MPCB::allocate(unsigned int spaceSize)
 {
   uint8_t* candidateStart = start;
-  vector<MPCB*>::iterator newBlockItr;
+  vector<MemBlock>::iterator newBlockItr;
   
-  if (subBlocks->empty())
+  if (allocated->empty())
   {
     if (spaceSize <= size)
     {
-      subBlocks->push_back(new MPCB(candidateStart, spaceSize));
-      return subBlocks->back();
+      allocated->push_back(MemBlock(candidateStart, spaceSize));
+      return allocated->back().getStart();
     } // If spaceSize is smaller or equal in size to the memory pool.
     return NULL;
   } // If no space allocated yet
   else
   {
-    for (vector<MPCB*>::iterator itr = subBlocks->begin() ; itr != subBlocks->end() ; itr++)
+    for (vector<MemBlock>::iterator itr = allocated->begin() ; itr != allocated->end() ; itr++)
     {
-      assert(candidateStart <= (*itr)->getStart());
-      if (spaceSize <= (unsigned int)((*itr)->getStart() - candidateStart))
+      assert(candidateStart <= (*itr).getStart());
+      if (spaceSize <= (unsigned int)((*itr).getStart() - candidateStart))
       {
-        newBlockItr = subBlocks->insert(itr, new MPCB(candidateStart, spaceSize));
-        return *newBlockItr;
+        newBlockItr = allocated->insert(itr, MemBlock(candidateStart, spaceSize));
+        return (*newBlockItr).getStart();
       }
       
-      candidateStart = (*itr)->getStart() + (*itr)->getSize();
+      candidateStart = (*itr).getStart() + (*itr).getSize();
     }
   } // If there is memory already allocated
   
   if ( spaceSize <= (unsigned int)((start + size) - candidateStart) )
   {
-    subBlocks->push_back(new MPCB(candidateStart, spaceSize));
-    return subBlocks->back();
+    allocated->push_back(MemBlock(candidateStart, spaceSize));
+    return allocated->back().getStart();
   }
   
   return NULL;
 }
 
 
-MPCB* MPCB::deallocate(uint8_t* strt)
+bool MPCB::deallocate(uint8_t* strt)
 {
-  MPCB* retVal;
-  for (vector<MPCB*>::iterator itr = subBlocks->begin() ; itr != subBlocks->end() ; itr++)
+  for (vector<MemBlock>::iterator itr = allocated->begin() ; itr != allocated->end() ; itr++)
   {
-    if ((*itr)->getStart() == strt)
+    if ((*itr).getStart() == strt)
     {
-      retVal = *itr;
-      subBlocks->erase(itr);
-      return retVal;
+      allocated->erase(itr);
+      return true;
     }
   }
-  return NULL;
+  return false;
 } // Note: Does not delete memory MPCB. MPCB cleanup handled in VirtualMachine.cpp
 
-
+/*
 MPCB* MPCB::findSubBlock(unsigned int ident)
 {
   for (vector<MPCB*>::iterator itr = subBlocks->begin() ; itr != subBlocks->end() ; itr++)
@@ -117,7 +115,7 @@ void MPCB::removeSubBlock(unsigned int ident)
     }
   }
 }
-
+*/
 
 unsigned int MPCB::getID()
 {

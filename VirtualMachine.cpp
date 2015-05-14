@@ -1,7 +1,7 @@
 #include "Thread.h"
 #include "Tibia.h"
 #include "Mutex.h"
-#include "Heap.h"
+//#include "Heap.h"
 #include "MPCB.h"
 
 
@@ -531,8 +531,7 @@ TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void 
   MachineSuspendSignals(&sigs);
   
   MPCB* foundPool;
-  bool isFound = false;
-  MPCB* allocatedBlock;
+  uint8_t* allocatedStart;
   
   if (!pointer || size == 0)
   {
@@ -548,15 +547,14 @@ TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void 
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
   
-  allocatedBlock = foundPool->allocate(size);
-  if (!allocatedBlock)
+  allocatedStart = foundPool->allocate(size);
+  if (!allocatedStart)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INSUFFICIENT_RESOURCES;
   }
   
-  pools->push_back(allocatedBlock);
-  *((uint8_t**)pointer) = allocatedBlock->getStart();
+  *((uint8_t**)pointer) = allocatedStart;
   
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
@@ -568,7 +566,6 @@ TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
   MachineSuspendSignals(&sigs);
   
   MPCB* foundPool;
-  MPCB* deallocatedBlock;
   
   if (!pointer)
   {
@@ -583,22 +580,10 @@ TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
   
-  deallocatedBlock = foundPool->deallocate((uint8_t*)pointer);
-  if (!deallocatedBlock)
+  if (!foundPool->deallocate((uint8_t*)pointer))
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
-  }
-  
-  // Uncertain here. Prevents memory leak, but could significantly increase runtime.
-  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; itr++)
-  {
-    if (deallocatedBlock->getID() == (*itr)->getID())
-    {
-      delete deallocatedBlock;
-      pools->erase(itr);
-      break;
-    }
   }
   
   MachineResumeSignals(&sigs);

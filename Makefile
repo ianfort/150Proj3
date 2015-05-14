@@ -15,6 +15,7 @@ APPDIR=./apps
 OBJS=$(OBJDIR)/Thread.o \
      $(OBJDIR)/Mutex.o \
      $(OBJDIR)/Tibia.o \
+     $(OBJDIR)/MemBlock.o \
      $(OBJDIR)/MPCB.o \
      $(OBJDIR)/Machine.o \
      $(OBJDIR)/VirtualMachineUtils.o \
