@@ -41,7 +41,8 @@ public:
   unsigned int getID();
   uint8_t* getStart();
   unsigned int getSize();
-  bool checkFree(unsigned int index);
+  bool fullyFree();
+//  bool checkFree(unsigned int index);
 };
 
 #endif

@@ -134,3 +134,9 @@ unsigned int MPCB::getSize()
   return size;
 }
 
+
+bool MPCB::fullyFree()
+{
+  return allocated->empty();
+}
+
