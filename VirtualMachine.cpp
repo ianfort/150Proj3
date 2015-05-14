@@ -40,7 +40,6 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   {
     return VM_STATUS_FAILURE;
   }//if mainFunc doesn't load, kill yourself
-  
 
   threads = new vector<Thread*>;
   mutexes = new vector<Mutex*>;
@@ -63,28 +62,21 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   VMThreadActivate(idletid);
   if (!(sharebase = MachineInitialize(machinetickms, share)))
     return 1; //screw cleanup. Kill yourself if machine initialize fails.
-  // Create MPCB for shared space
-  pools->push_back(new MPCB((uint8_t*)sharebase, share));
-  
+  pools->push_back(new MPCB((uint8_t*)sharebase, share)); //Create MPCB for shared space
   MachineRequestAlarm((tickms*1000), timerISR, NULL);
   MachineEnableSignals();
 
   mainFunc(argc, argv);
   VMUnloadModule();
   MachineTerminate();
-  for (vector<Thread*>::iterator itr = threads->begin(); itr != threads->end(); itr++)
+  for (vector<Thread*>::iterator itr = (threads->begin()+1); itr != threads->end(); itr++)
   {
-    if (*itr)
-    {
-      delete *itr;
-    }//delete contents of threads
+    VMThreadTerminate(*((*itr)->getIDRef()));
+    delete *itr;
   }//for all threads
   for (vector<Mutex*>::iterator itr = mutexes->begin(); itr != mutexes->end(); itr++)
   {
-    if (*itr)
-    {
-      VMMutexDelete((*itr)->getID());
-    }//delete contents of threads
+    VMMutexDelete((*itr)->getID());
   }//for all threads
   delete threads;
   delete mutexes;
