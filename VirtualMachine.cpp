@@ -22,11 +22,11 @@ Thread *tr, *mainThread, *pt;
 queue<Thread*> *readyQ[NUM_RQS];
 sigset_t sigs;
 vector<Mutex*> *mutexes;
-// Heap *heap;
 uint8_t *heap;
 vector<MPCB*> *pools;
 uint8_t *VMPoolStart;
 void* sharebase;
+TVMMemoryPoolIDRef shareid;
 
 const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
@@ -62,7 +62,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   VMThreadActivate(idletid);
   if (!(sharebase = MachineInitialize(machinetickms, share)))
     return 1; //screw cleanup. Kill yourself if machine initialize fails.
-  pools->push_back(new MPCB((uint8_t*)sharebase, share)); //Create MPCB for shared space
+  VMMemoryPoolCreate(sharebase, share, shareid);
   MachineRequestAlarm((tickms*1000), timerISR, NULL);
   MachineEnableSignals();
 
@@ -133,25 +133,41 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   MachineSuspendSignals(&sigs);
   tr->setcd(-739);
   int lenleft = *length;
+  int writelen = 512;
   char* localdata = new char[*length + 1];
   strcpy(localdata, (char*)data);
+  void **writeloc = NULL;
   if (!data || !length)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to have NULL pointers for where we put the data
-  //errors if length > 512 bytes
-  for (int i = 0; lenleft >= 0 ; i++, lenleft -= 256)
+  if (*length < 512)
   {
-    if (lenleft >= 256)
-      memcpy(sharebase, (void*)localdata[i*256], 256);
+    while (VMMemoryPoolAllocate(*shareid, *length, writeloc) != VM_STATUS_SUCCESS);
+  }//if length doesn't need a full set of memory
+  else
+  {
+    while (VMMemoryPoolAllocate(*shareid, 512, writeloc) != VM_STATUS_SUCCESS);
+  }//else we're going to be writing 512 bytes at a time
+  for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
+  {
+    if (lenleft >= 512)
+    {
+      memcpy(*writeloc, (void*)localdata[i*512], 512);
+      writelen = 512;
+    }//if at least 512 bytes remain to write
     else
-      memcpy(sharebase, data, *length);
-    MachineFileWrite(filedescriptor, sharebase, *length, fileCallback, (void*)tr);
+    {
+      memcpy(*writeloc, (void*)localdata[i*512], *length);
+      writelen = lenleft;
+    }//else less than a full length is left to write
+    MachineFileWrite(filedescriptor, *writeloc, writelen, fileCallback, (void*)tr);
     tr->setState(VM_THREAD_STATE_WAITING);
     scheduler();
   }
   delete localdata;
+  VMMemoryPoolDeallocate(*shareid, *writeloc);
   if(tr->getcd() < 0)
   {
     MachineResumeSignals(&sigs);
