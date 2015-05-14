@@ -16,6 +16,7 @@ void scheduler();
 void skeleton(void* tibia);
 void idle(void*);
 Mutex* findMutex(TVMMutexID id);
+MPCB* findMemPool(TVMMemoryPoolID id);
 
 vector<Thread*> *threads;
 Thread *tr, *mainThread, *pt;
@@ -614,13 +615,76 @@ Mutex* findMutex(TVMMutexID id)
 TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
 {
   MachineSuspendSignals(&sigs);
+  
+  MPCB* foundPool;
+  bool isFound = false;
+  MPCB* allocatedBlock;
+  
+  if (!pointer || size == 0)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  foundPool = findMemPool(memory);
+  
+  if (!foundPool)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  allocatedBlock = foundPool->allocate(size);
+  if (!allocatedBlock)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INSUFFICIENT_RESOURCES;
+  }
+  
+  pools->push_back(allocatedBlock);
+  *((uint8_t**)pointer) = allocatedBlock->getStart();
+  
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}
 
-  /*
-  uint8_t *createdStart;
-  createdStart = (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->allocate(size);
-  (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->insertSubBlock(temp);
-  *((uint8_t*)base) = createdStart;
-  */
+TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
+{
+  MachineSuspendSignals(&sigs);
+  
+  MPCB* foundPool;
+  MPCB* deallocatedBlock;
+  
+  if (!pointer)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  foundPool = findMemPool(memory);
+  if (!memory)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  deallocatedBlock = foundPool->deallocate((uint8_t*)pointer);
+  if (!deallocatedBlock)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  // Uncertain here. Prevents memory leak, but could significantly increase runtime.
+  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; itr++)
+  {
+    if (deallocatedBlock->getID() == (*itr)->getID())
+    {
+      delete deallocatedBlock;
+      pools->erase(itr);
+      break;
+    }
+  }
   
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
@@ -630,21 +694,30 @@ TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void 
 TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
 {
   MachineSuspendSignals(&sigs);
-  MPCB* temp;
+  
   if (!base || !memory)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  uint8_t *createdStart;
-  createdStart = (*pools)[VM_MEMORY_POOL_ID_SYSTEM]->allocate(size);
-  temp = new MPCB(createdStart, size);
-  pools->push_back(temp);
-  *memory = (temp->getID());
+  
+  vector<MPCB*>::iterator poolItr = pools->push_back(new MPCB((uint8_t*)base, size));
+  *memory = (*poolItr)->getID(); 
+  
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }
 // END MEMORY POOL FUNCTIONS
 
 
-
+MPCB* findMemPool(TVMMemoryPoolID id)
+{
+  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; itr++)
+  {
+    if ((*itr)->getID() == id)
+    {
+      return (*itr);
+    }
+  }
+  return NULL;
+}

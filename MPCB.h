@@ -4,32 +4,13 @@
 #include <vector>
 #include <stdint.h>
 #include <cstddef>
+#include <cassert>
+
+// #include "MemBlock.h"
 
 //#define MEMHEAP 0
 //#define MEMPOOL 1
 //#define MEMBLOCK 2
-
-/*
-#ifndef HEAP_H
-#define HEAP_H
-
-#include <stdint.h>
-#include <cstddef>
-
-using namespace std;
-
-class Heap
-{
-  uint8_t *heap;
-  bool *isFree;
-  unsigned int heapsz;
-  unsigned int sharedsz;
-public:
-  Heap(unsigned int hpSz, unsigned int shSz);
-  ~Heap();
-  uint8_t* allocatePool(unsigned int stackSize);
-};
-*/
 
 // enum MemLevel {MEMHEAP, MEMPOOL, MEMBLOCK};
  
@@ -41,7 +22,8 @@ class MPCB
   unsigned int id;
   uint8_t *start;
   unsigned int size;
-  bool *isFree;
+//  vector<MemBlock> *allocated;
+//  bool *isFree;
 //  MemLevel level;
   
   vector<MPCB*> *subBlocks;
@@ -49,8 +31,8 @@ public:
   MPCB(uint8_t *plStrt, unsigned int plSz /*, MemLevel lvl */);
   ~MPCB();
 
-  uint8_t* allocate(unsigned int size);
-  uint8_t* deallocate(unsigned int ident);
+  MPCB* allocate(unsigned int size);
+  MPCB* deallocate(uint8_t* strt);
 
   MPCB* findSubBlock(unsigned int ident);
   void insertSubBlock(MPCB* m);

@@ -7,11 +7,7 @@ MPCB::MPCB(uint8_t *plStrt, unsigned int plSz)
   id = idInc;
   start = plStrt;
   size = plSz;
-  isFree = new bool[size];
-  for (unsigned int i = 0 ; i < size ; i++ )
-  {
-    isFree[i] = true;
-  }
+  //allocated = new vector<MemBlock>;
   subBlocks = new vector<MPCB*>;
 
   idInc++;
@@ -32,72 +28,65 @@ MPCB::MPCB(uint8_t *plStrt, unsigned int plSz)
 
 MPCB::~MPCB()
 {
-  delete isFree;
+  delete allocated;
   delete subBlocks;
 }
 
 
-
-uint8_t* MPCB::allocate(unsigned int spaceSize)
+MPCB* MPCB::allocate(unsigned int spaceSize)
 {
-  unsigned int freeStart = -1;
-  bool checkMode = false;
-  bool checkCounter = 0;
-  bool success = false;
-  // First part: Find free memory space large enough to fit spaceSize
-  for (unsigned int i = 0 ; i < size ; i++)
+  uint8_t* candidateStart = start;
+  vector<MPCB*>::iterator newBlockItr;
+  
+  if (subBlocks->empty())
   {
-    if (isFree[i])
+    if (spaceSize <= size)
     {
-      if (!checkMode)
-      {
-        freeStart = i;
-        checkMode = true;
-        checkCounter = 0;
-      }
-      if (checkCounter < spaceSize)
-      {
-        checkCounter++;
-      }
-      else
-      {
-        success = true;
-        break;
-      }
-    }
-    else
-    {
-      checkMode = false;
-    }
-  }
-
-  if (!success)
-  {
+      newBlockItr = subBlocks->push_back(new MPCB(candidateStart, spaceSize));
+      return *newBlockItr;
+    } // If spaceSize is smaller or equal in size to the memory pool.
     return NULL;
-  }
-  // Second part: Allocate memory space
-
-  for (unsigned int i = freeStart ; i < freeStart + spaceSize ; i++)
+  } // If no space allocated yet
+  else
   {
-    isFree[i] = false;
+    for (vector<MPCB*>::iterator itr = subBlocks->begin() ; itr != subBlocks->end() ; itr++)
+    {
+      assert(candidateStart <= (*itr)->getStart());
+      if (spaceSize <= (unsigned int)((*itr)->getStart() - candidateStart))
+      {
+        newBlockItr = subBlocks->insert(itr, new MPCB(candidateStart, spaceSize));
+        foundSpace = true;
+        return *newBlockItr;
+      }
+      
+      candidateStart = (*itr)->getStart() + (uint8_t*)((*itr)->getSize());
+    }
+  } // If there is memory already allocated
+  
+  if ( spaceSize <= (unsigned int)((start + (uint8_t)size) - candidateStart) )
+  {
+    newBlockItr = subBlocks->push_back(new MPCB(candidateStart, spaceSize));
+    return *newBlockItr;
   }
-
-  return &start[freeStart]; //return location of start of MPool
+  
+  return NULL;
 }
 
 
-uint8_t* MPCB::deallocate(unsigned int ident)
+MPCB* MPCB::deallocate(uint8_t* strt)
 {
-  unsigned int freeStart;
-  MPCB* toRemove = findSubBlock(ident);
-  freeStart = (unsigned int)(toRemove->getStart() - start);
-  for (unsigned int i = freeStart ; i < freeStart + toRemove->getSize() ; i++)
+  MPCB* retVal;
+  for (vector<MPCB*>::iterator itr = subBlocks->begin() ; itr != subBlocks->end() ; itr++)
   {
-    isFree[i] = true;
+    if ((*itr)->getStart() == strt)
+    {
+      retVal = *itr;
+      subBlocks->erase(itr);
+      return retVal;
+    }
   }
-
-  return &start[freeStart];
-}
+  return NULL;
+} // Note: Does not delete memory MPCB. MPCB cleanup handled in VirtualMachine.cpp
 
 
 MPCB* MPCB::findSubBlock(unsigned int ident)
@@ -147,11 +136,5 @@ uint8_t* MPCB::getStart()
 unsigned int MPCB::getSize()
 {
   return size;
-}
-
-
-bool MPCB::checkFree(unsigned int index)
-{
-  return isFree[index];
 }
 
