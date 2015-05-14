@@ -525,6 +525,101 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMThreadTerminate(TVMThreadID thread)
 
+// START MEMORY POOL FUNCTIONS
+TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
+{
+  MachineSuspendSignals(&sigs);
+  
+  MPCB* foundPool;
+  bool isFound = false;
+  MPCB* allocatedBlock;
+  
+  if (!pointer || size == 0)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  foundPool = findMemPool(memory);
+  
+  if (!foundPool)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  allocatedBlock = foundPool->allocate(size);
+  if (!allocatedBlock)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INSUFFICIENT_RESOURCES;
+  }
+  
+  pools->push_back(allocatedBlock);
+  *((uint8_t**)pointer) = allocatedBlock->getStart();
+  
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}//TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
+
+
+TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
+{
+  MachineSuspendSignals(&sigs);
+  
+  MPCB* foundPool;
+  MPCB* deallocatedBlock;
+  
+  if (!pointer)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  foundPool = findMemPool(memory);
+  if (!memory)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  deallocatedBlock = foundPool->deallocate((uint8_t*)pointer);
+  if (!deallocatedBlock)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  
+  // Uncertain here. Prevents memory leak, but could significantly increase runtime.
+  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; itr++)
+  {
+    if (deallocatedBlock->getID() == (*itr)->getID())
+    {
+      delete deallocatedBlock;
+      pools->erase(itr);
+      break;
+    }
+  }
+  
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}
+
+
+TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
+{
+  MachineSuspendSignals(&sigs);
+  if (!base || !memory)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+  pools->push_back(new MPCB((uint8_t*)base, size));
+  *memory = pools->back()->getID(); 
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}//TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
+// END MEMORY POOL FUNCTIONS
 
 void fileCallback(void* calldata, int result)
 {
@@ -608,106 +703,6 @@ Mutex* findMutex(TVMMutexID id)
   }
   return NULL;
 }
-
-
-// START MEMORY POOL FUNCTIONS
-
-TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
-{
-  MachineSuspendSignals(&sigs);
-  
-  MPCB* foundPool;
-  bool isFound = false;
-  MPCB* allocatedBlock;
-  
-  if (!pointer || size == 0)
-  {
-    MachineResumeSignals(&sigs);
-    return VM_STATUS_ERROR_INVALID_PARAMETER;
-  }
-  
-  foundPool = findMemPool(memory);
-  
-  if (!foundPool)
-  {
-    MachineResumeSignals(&sigs);
-    return VM_STATUS_ERROR_INVALID_PARAMETER;
-  }
-  
-  allocatedBlock = foundPool->allocate(size);
-  if (!allocatedBlock)
-  {
-    MachineResumeSignals(&sigs);
-    return VM_STATUS_ERROR_INSUFFICIENT_RESOURCES;
-  }
-  
-  pools->push_back(allocatedBlock);
-  *((uint8_t**)pointer) = allocatedBlock->getStart();
-  
-  MachineResumeSignals(&sigs);
-  return VM_STATUS_SUCCESS;
-}
-
-TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
-{
-  MachineSuspendSignals(&sigs);
-  
-  MPCB* foundPool;
-  MPCB* deallocatedBlock;
-  
-  if (!pointer)
-  {
-    MachineResumeSignals(&sigs);
-    return VM_STATUS_ERROR_INVALID_PARAMETER;
-  }
-  
-  foundPool = findMemPool(memory);
-  if (!memory)
-  {
-    MachineResumeSignals(&sigs);
-    return VM_STATUS_ERROR_INVALID_PARAMETER;
-  }
-  
-  deallocatedBlock = foundPool->deallocate((uint8_t*)pointer);
-  if (!deallocatedBlock)
-  {
-    MachineResumeSignals(&sigs);
-    return VM_STATUS_ERROR_INVALID_PARAMETER;
-  }
-  
-  // Uncertain here. Prevents memory leak, but could significantly increase runtime.
-  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; itr++)
-  {
-    if (deallocatedBlock->getID() == (*itr)->getID())
-    {
-      delete deallocatedBlock;
-      pools->erase(itr);
-      break;
-    }
-  }
-  
-  MachineResumeSignals(&sigs);
-  return VM_STATUS_SUCCESS;
-}
-
-
-TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
-{
-  MachineSuspendSignals(&sigs);
-  
-  if (!base || !memory)
-  {
-    MachineResumeSignals(&sigs);
-    return VM_STATUS_ERROR_INVALID_PARAMETER;
-  }
-  
-  pools->push_back(new MPCB((uint8_t*)base, size));
-  *memory = pools->back()->getID(); 
-  
-  MachineResumeSignals(&sigs);
-  return VM_STATUS_SUCCESS;
-}
-// END MEMORY POOL FUNCTIONS
 
 
 MPCB* findMemPool(TVMMemoryPoolID id)
