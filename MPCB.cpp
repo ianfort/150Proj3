@@ -28,7 +28,6 @@ MPCB::MPCB(uint8_t *plStrt, unsigned int plSz)
 
 MPCB::~MPCB()
 {
-  delete allocated;
   delete subBlocks;
 }
 
@@ -42,8 +41,8 @@ MPCB* MPCB::allocate(unsigned int spaceSize)
   {
     if (spaceSize <= size)
     {
-      newBlockItr = subBlocks->push_back(new MPCB(candidateStart, spaceSize));
-      return *newBlockItr;
+      subBlocks->push_back(new MPCB(candidateStart, spaceSize));
+      return subBlocks->back();
     } // If spaceSize is smaller or equal in size to the memory pool.
     return NULL;
   } // If no space allocated yet
@@ -55,18 +54,17 @@ MPCB* MPCB::allocate(unsigned int spaceSize)
       if (spaceSize <= (unsigned int)((*itr)->getStart() - candidateStart))
       {
         newBlockItr = subBlocks->insert(itr, new MPCB(candidateStart, spaceSize));
-        foundSpace = true;
         return *newBlockItr;
       }
       
-      candidateStart = (*itr)->getStart() + (uint8_t*)((*itr)->getSize());
+      candidateStart = (*itr)->getStart() + (*itr)->getSize();
     }
   } // If there is memory already allocated
   
-  if ( spaceSize <= (unsigned int)((start + (uint8_t)size) - candidateStart) )
+  if ( spaceSize <= (unsigned int)((start + size) - candidateStart) )
   {
-    newBlockItr = subBlocks->push_back(new MPCB(candidateStart, spaceSize));
-    return *newBlockItr;
+    subBlocks->push_back(new MPCB(candidateStart, spaceSize));
+    return subBlocks->back();
   }
   
   return NULL;

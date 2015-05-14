@@ -701,8 +701,8 @@ TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef 
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
   
-  vector<MPCB*>::iterator poolItr = pools->push_back(new MPCB((uint8_t*)base, size));
-  *memory = (*poolItr)->getID(); 
+  pools->push_back(new MPCB((uint8_t*)base, size));
+  *memory = pools->back()->getID(); 
   
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
