@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cassert>
 
-// #include "MemBlock.h"
+#include "MemBlock.h"
 
 //#define MEMHEAP 0
 //#define MEMPOOL 1
@@ -22,21 +22,21 @@ class MPCB
   unsigned int id;
   uint8_t *start;
   unsigned int size;
-//  vector<MemBlock> *allocated;
+  vector<MemBlock> *allocated;
 //  bool *isFree;
 //  MemLevel level;
   
-  vector<MPCB*> *subBlocks;
+//  vector<MPCB*> *subBlocks;
 public:
   MPCB(uint8_t *plStrt, unsigned int plSz /*, MemLevel lvl */);
   ~MPCB();
 
-  MPCB* allocate(unsigned int size);
-  MPCB* deallocate(uint8_t* strt);
+  uint8_t* allocate(unsigned int size);
+  bool deallocate(uint8_t* strt);
 
-  MPCB* findSubBlock(unsigned int ident);
-  void insertSubBlock(MPCB* m);
-  void removeSubBlock(unsigned int ident);
+//  MPCB* findSubBlock(unsigned int ident);
+//  void insertSubBlock(MPCB* m);
+//  void removeSubBlock(unsigned int ident);
 
   unsigned int getID();
   uint8_t* getStart();
