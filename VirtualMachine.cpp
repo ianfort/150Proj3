@@ -148,11 +148,8 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
     memcpy(writeloc, &localdata[i*512], min(lenleft, 512));
     MachineFileWrite(filedescriptor, writeloc, min(lenleft, 512), fileCallback, (void*)tr);
     tr->setState(VM_THREAD_STATE_WAITING);
-    cout << "y" << endl;
     scheduler();
-    cout << "z" << endl;
   }//cycle as needed to print everything in blocks of 512 bytes at a time
-  cout << "2" << endl;
   delete localdata;
   VMMemoryPoolDeallocate(shareid, writeloc);
   if(tr->getcd() < 0)
