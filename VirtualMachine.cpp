@@ -143,21 +143,23 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   }//not allowed to have NULL pointers for where we put the data
   while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&writeloc))
     scheduler();//try to allocate until it works
-  cout << "1" << endl;
   for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
   {
     memcpy(writeloc, &localdata[i*512], min(lenleft, 512));
     MachineFileWrite(filedescriptor, writeloc, min(lenleft, 512), fileCallback, (void*)tr);
     tr->setState(VM_THREAD_STATE_WAITING);
+    cout << "y" << endl;
     scheduler();
-  }
+    cout << "z" << endl;
+  }//cycle as needed to print everything in blocks of 512 bytes at a time
+  cout << "2" << endl;
   delete localdata;
   VMMemoryPoolDeallocate(shareid, writeloc);
   if(tr->getcd() < 0)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_FAILURE;
-  }//if a non-negative number of bytes written
+  }//if a negative number of bytes written
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 } // VMFileWrite
@@ -669,11 +671,15 @@ TVMStatus VMMemoryPoolQuery(TVMMemoryPoolID memory, TVMMemorySizeRef bytesleft)
 //***************************************************************************//
 void fileCallback(void* calldata, int result)
 {
+  cout << "cb1" << endl;
   Thread* cbt = (Thread*)calldata;
   cbt->setcd(result);
+  cout << "cb2" << endl;
   while (cbt->getState() != VM_THREAD_STATE_WAITING);
+  cout << "cb3" << endl;
   cbt->setState(VM_THREAD_STATE_READY);
   readyQ[cbt->getPriority()]->push(cbt);
+  cout << "cb4" << endl;
 }//void fileCallback(void* calldata, int result)
 
 
