@@ -134,3 +134,21 @@ unsigned int MPCB::getSize()
   return size;
 }
 
+
+bool MPCB::fullyFree()
+{
+  return allocated->empty();
+}
+
+
+unsigned int MPCB::countFree()
+{
+  unsigned int numAllocated = 0;
+  for (vector<MemBlock>::iterator itr = allocated->begin() ; itr != allocated->end() ; itr++)
+  {
+    numAllocated += (*itr).getSize();
+  }
+
+  return size - numAllocated;
+}
+

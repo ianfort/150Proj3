@@ -610,6 +610,57 @@ TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef 
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef memory)
+
+
+TVMStatus VMMemoryPoolDelete(TVMMemoryPoolID memory)
+{
+  MachineSuspendSignals(&sigs);
+  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; pools++)
+  {
+    if ((*itr)->getID() == memory)
+    {
+      if (!(*itr)->fullyFree())
+      {
+        MachineResumeSignals(&sigs);
+        return VM_STATUS_ERROR_INVALID_STATE;
+      }
+      delete (*itr);
+      pools->erase(itr);
+      MachineResumeSignals(&sigs);
+      return VM_STATUS_SUCCESS;
+    }
+  }
+
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_ERROR_INVALID_PARAMETER;
+} // TVMStatus VMMemoryPoolDelete(TVMMemoryPoolID memory)
+
+
+TVMStatus VMMemoryPoolQuery(TVMMemoryPoolID memory, TVMMemorySizeRef bytesleft)
+{
+  MachineSuspendSignals(&sigs);
+
+  MPCB* foundPool;
+
+  if (!bytesleft)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+
+  foundPool = findMemPool(memory);
+  if (!foundPool)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+
+  *bytesleft = foundPool->countFree();
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}
+
+
 //***************************************************************************//
 // END MEMORY POOL FUNCTIONS                                                 //
 //***************************************************************************//
