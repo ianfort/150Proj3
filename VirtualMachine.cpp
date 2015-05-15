@@ -2,7 +2,7 @@
 #include "Tibia.h"
 #include "Mutex.h"
 #include "MPCB.h"
-
+#include <algorithm>
 
 
 using namespace std;
@@ -26,7 +26,7 @@ uint8_t *heap;
 vector<MPCB*> *pools;
 uint8_t *VMPoolStart;
 void* sharebase;
-TVMMemoryPoolIDRef shareid;
+TVMMemoryPoolID shareid;
 
 const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
@@ -62,7 +62,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   VMThreadActivate(idletid);
   if (!(sharebase = MachineInitialize(machinetickms, share)))
     return 1; //screw cleanup. Kill yourself if machine initialize fails.
-  VMMemoryPoolCreate(sharebase, share, shareid);
+  VMMemoryPoolCreate(sharebase, share, &shareid);
   MachineRequestAlarm((tickms*1000), timerISR, NULL);
   MachineEnableSignals();
 
@@ -133,41 +133,26 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   MachineSuspendSignals(&sigs);
   tr->setcd(-739);
   int lenleft = *length;
-  int writelen = 512;
   char* localdata = new char[*length + 1];
   strcpy(localdata, (char*)data);
-  void **writeloc = NULL;
+  char *writeloc;
   if (!data || !length)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to have NULL pointers for where we put the data
-  if (*length < 512)
-  {
-    while (VMMemoryPoolAllocate(*shareid, *length, writeloc) != VM_STATUS_SUCCESS);
-  }//if length doesn't need a full set of memory
-  else
-  {
-    while (VMMemoryPoolAllocate(*shareid, 512, writeloc) != VM_STATUS_SUCCESS);
-  }//else we're going to be writing 512 bytes at a time
+  while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&writeloc))
+    scheduler();//try to allocate until it works
+  cout << "1" << endl;
   for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
   {
-    if (lenleft >= 512)
-    {
-      memcpy(*writeloc, (void*)localdata[i*512], 512);
-      writelen = 512;
-    }//if at least 512 bytes remain to write
-    else
-    {
-      memcpy(*writeloc, (void*)localdata[i*512], *length);
-      writelen = lenleft;
-    }//else less than a full length is left to write
-    MachineFileWrite(filedescriptor, *writeloc, writelen, fileCallback, (void*)tr);
+    memcpy(writeloc, &localdata[i*512], min(lenleft, 512));
+    MachineFileWrite(filedescriptor, writeloc, min(lenleft, 512), fileCallback, (void*)tr);
     tr->setState(VM_THREAD_STATE_WAITING);
     scheduler();
   }
   delete localdata;
-  VMMemoryPoolDeallocate(*shareid, *writeloc);
+  VMMemoryPoolDeallocate(shareid, writeloc);
   if(tr->getcd() < 0)
   {
     MachineResumeSignals(&sigs);
