@@ -42,6 +42,7 @@ public:
   uint8_t* getStart();
   unsigned int getSize();
   bool fullyFree();
+  unsigned int countFree();
 //  bool checkFree(unsigned int index);
 };
 

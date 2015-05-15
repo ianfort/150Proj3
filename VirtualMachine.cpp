@@ -651,6 +651,31 @@ TVMStatus VMMemoryPoolDelete(TVMMemoryPoolID memory)
 } // TVMStatus VMMemoryPoolDelete(TVMMemoryPoolID memory)
 
 
+TVMStatus VMMemoryPoolQuery(TVMMemoryPoolID memory, TVMMemorySizeRef bytesleft)
+{
+  MachineSuspendSignals(&sigs);
+
+  MPCB* foundPool;
+
+  if (!bytesleft)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+
+  foundPool = findMemPool(memory);
+  if (!foundPool)
+  {
+    MachineResumeSignals(&sigs);
+    return VM_STATUS_ERROR_INVALID_PARAMETER;
+  }
+
+  *bytesleft = foundPool->countFree();
+  MachineResumeSignals(&sigs);
+  return VM_STATUS_SUCCESS;
+}
+
+
 //***************************************************************************//
 // END MEMORY POOL FUNCTIONS                                                 //
 //***************************************************************************//
