@@ -142,8 +142,8 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to have NULL pointers for where we put the data
-//  while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&writeloc))
-//    scheduler();//try to allocate until it works
+  while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&writeloc))
+    scheduler();//try to allocate until it works
   for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
   {
     memcpy(sharebase, &localdata[i*512], min(lenleft, 512));

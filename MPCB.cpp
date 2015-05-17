@@ -36,7 +36,6 @@ uint8_t* MPCB::allocate(unsigned int spaceSize)
 {
   uint8_t* candidateStart = start;
   vector<MemBlock>::iterator newBlockItr;
-  
   if (allocated->empty())
   {
     if (spaceSize <= size)
@@ -50,23 +49,19 @@ uint8_t* MPCB::allocate(unsigned int spaceSize)
   {
     for (vector<MemBlock>::iterator itr = allocated->begin() ; itr != allocated->end() ; itr++)
     {
-      assert(candidateStart <= (*itr).getStart());
       if (spaceSize <= (unsigned int)((*itr).getStart() - candidateStart))
       {
         newBlockItr = allocated->insert(itr, MemBlock(candidateStart, spaceSize));
         return (*newBlockItr).getStart();
       }
-      
       candidateStart = (*itr).getStart() + (*itr).getSize();
     }
   } // If there is memory already allocated
-  
   if ( spaceSize <= (unsigned int)((start + size) - candidateStart) )
   {
     allocated->push_back(MemBlock(candidateStart, spaceSize));
     return allocated->back().getStart();
   }
-  
   return NULL;
 }
 
