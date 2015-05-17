@@ -630,7 +630,7 @@ TVMStatus VMMemoryPoolCreate(void *base, TVMMemorySize size, TVMMemoryPoolIDRef 
 TVMStatus VMMemoryPoolDelete(TVMMemoryPoolID memory)
 {
   MachineSuspendSignals(&sigs);
-  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; pools++)
+  for (vector<MPCB*>::iterator itr = pools->begin() ; itr != pools->end() ; itr++)
   {
     if ((*itr)->getID() == memory)
     {
@@ -645,7 +645,6 @@ TVMStatus VMMemoryPoolDelete(TVMMemoryPoolID memory)
       return VM_STATUS_SUCCESS;
     }
   }
-
   MachineResumeSignals(&sigs);
   return VM_STATUS_ERROR_INVALID_PARAMETER;
 } // TVMStatus VMMemoryPoolDelete(TVMMemoryPoolID memory)
