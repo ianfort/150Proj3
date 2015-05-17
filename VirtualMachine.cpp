@@ -585,7 +585,7 @@ TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
   foundPool = findMemPool(memory);
-  if (!memory)
+  if (!foundPool)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
