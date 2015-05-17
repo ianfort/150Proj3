@@ -534,26 +534,20 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
 TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
 {
   MachineSuspendSignals(&sigs);
-
+  MPCB* foundPool;
+  uint8_t* allocatedStart;
+  TVMMemorySize sz = (size+0x3F)&(~0x3F);
   if (!pointer || size == 0)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  
-
-  TVMMemorySize sz = (size+0x3F)&(~0x3F);
-
-  MPCB* foundPool;
-  uint8_t* allocatedStart;
-  
   foundPool = findMemPool(memory);
   if (!foundPool)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  
   allocatedStart = foundPool->allocate(sz);
   if (!allocatedStart)
   {
