@@ -133,6 +133,7 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   MachineSuspendSignals(&sigs);
   tr->setcd(-739);
   int lenleft = *length;
+  int byteswritten = 0;
   char* localdata = new char[*length + 1];
   strcpy(localdata, (char*)data);
   char *writeloc;
@@ -149,9 +150,11 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
     MachineFileWrite(filedescriptor, sharebase, min(lenleft, 512), fileCallback, (void*)tr);
     tr->setState(VM_THREAD_STATE_WAITING);
     scheduler();
+    byteswritten += tr->getcd();
   }//cycle as needed to print everything in blocks of 512 bytes at a time
   delete localdata;
   VMMemoryPoolDeallocate(shareid, writeloc);
+  tr->setcd(byteswritten);
   if(tr->getcd() < 0)
   {
     MachineResumeSignals(&sigs);
@@ -187,14 +190,26 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
 {
   MachineSuspendSignals(&sigs);
   tr->setcd(-728);
+  char* retval = new char[*length + 1];
+  int lenleft = *length;
+  int bytesread = 0;
+  char *readloc;
   if (!data || !length)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to be NULL pointers
-  MachineFileRead(filedescriptor, data, *length, fileCallback, (void*)tr);
-  tr->setState(VM_THREAD_STATE_WAITING);
-  scheduler();
+  while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&readloc))
+    scheduler();//try to allocate until it works
+  for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
+  {
+    MachineFileRead(filedescriptor, readloc, min(lenleft, 512), fileCallback, (void*)tr);
+    tr->setState(VM_THREAD_STATE_WAITING);
+    scheduler();
+    bytesread += tr->getcd();
+    memcpy(retval, readloc, min(lenleft, 512));
+  }
+  tr->setcd(bytesread);
   *length = tr->getcd();
   if (tr->getcd() < 0)
   {
