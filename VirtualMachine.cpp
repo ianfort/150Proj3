@@ -26,7 +26,7 @@ uint8_t *heap;
 vector<MPCB*> *pools;
 uint8_t *VMPoolStart;
 void* sharebase;
-TVMMemoryPoolID shareid;
+TVMMemoryPoolID shareid, heapid;
 
 const TVMMemoryPoolID VM_MEMORY_POOL_ID_SYSTEM = 0;
 
@@ -51,7 +51,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   // Create heap.
   heap = new uint8_t[heapsize];
   pools = new vector<MPCB*>;
-   pools->push_back(new MPCB(heap, heapsize));
+  VMMemoryPoolCreate(heap, heapsize, &heapid);
 
   mainThread = new Thread;
   mainThread->setPriority(VM_THREAD_PRIORITY_NORMAL);
@@ -133,6 +133,7 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   MachineSuspendSignals(&sigs);
   tr->setcd(-739);
   int lenleft = *length;
+  int byteswritten = 0;
   char* localdata = new char[*length + 1];
   strcpy(localdata, (char*)data);
   char *writeloc;
@@ -145,13 +146,15 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
     scheduler();//try to allocate until it works
   for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
   {
-    memcpy(writeloc, &localdata[i*512], min(lenleft, 512));
-    MachineFileWrite(filedescriptor, writeloc, min(lenleft, 512), fileCallback, (void*)tr);
+    memcpy(sharebase, &localdata[i*512], min(lenleft, 512));
+    MachineFileWrite(filedescriptor, sharebase, min(lenleft, 512), fileCallback, (void*)tr);
     tr->setState(VM_THREAD_STATE_WAITING);
     scheduler();
+    byteswritten += tr->getcd();
   }//cycle as needed to print everything in blocks of 512 bytes at a time
   delete localdata;
   VMMemoryPoolDeallocate(shareid, writeloc);
+  tr->setcd(byteswritten);
   if(tr->getcd() < 0)
   {
     MachineResumeSignals(&sigs);
@@ -187,14 +190,26 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
 {
   MachineSuspendSignals(&sigs);
   tr->setcd(-728);
+  char* retval = new char[*length + 1];
+  int lenleft = *length;
+  int bytesread = 0;
+  char *readloc;
   if (!data || !length)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to be NULL pointers
-  MachineFileRead(filedescriptor, data, *length, fileCallback, (void*)tr);
-  tr->setState(VM_THREAD_STATE_WAITING);
-  scheduler();
+  while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&readloc))
+    scheduler();//try to allocate until it works
+  for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
+  {
+    MachineFileRead(filedescriptor, readloc, min(lenleft, 512), fileCallback, (void*)tr);
+    tr->setState(VM_THREAD_STATE_WAITING);
+    scheduler();
+    bytesread += tr->getcd();
+    memcpy(retval, readloc, min(lenleft, 512));
+  }
+  tr->setcd(bytesread);
   *length = tr->getcd();
   if (tr->getcd() < 0)
   {
@@ -534,36 +549,27 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
 TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
 {
   MachineSuspendSignals(&sigs);
-
+  MPCB* foundPool;
+  uint8_t* allocatedStart;
+  TVMMemorySize sz = (size+0x3F)&(~0x3F);
   if (!pointer || size == 0)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  
-
-  TVMMemorySize sz = (size+0x3F)&(~0x3F);
-
-  MPCB* foundPool;
-  uint8_t* allocatedStart;
-  
   foundPool = findMemPool(memory);
-  
   if (!foundPool)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  
   allocatedStart = foundPool->allocate(sz);
   if (!allocatedStart)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INSUFFICIENT_RESOURCES;
   }
-  
   *((uint8_t**)pointer) = allocatedStart;
-  
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
@@ -572,28 +578,23 @@ TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void 
 TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
 {
   MachineSuspendSignals(&sigs);
-  
   MPCB* foundPool;
-  
   if (!pointer)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  
   foundPool = findMemPool(memory);
   if (!memory)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  
   if (!foundPool->deallocate((uint8_t*)pointer))
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
-  
   MachineResumeSignals(&sigs);
   return VM_STATUS_SUCCESS;
 }//TVMStatus VMMemoryPoolDeallocate(TVMMemoryPoolID memory, void *pointer)
@@ -671,15 +672,11 @@ TVMStatus VMMemoryPoolQuery(TVMMemoryPoolID memory, TVMMemorySizeRef bytesleft)
 //***************************************************************************//
 void fileCallback(void* calldata, int result)
 {
-  cout << "cb1" << endl;
   Thread* cbt = (Thread*)calldata;
   cbt->setcd(result);
-  cout << "cb2" << endl;
   while (cbt->getState() != VM_THREAD_STATE_WAITING);
-  cout << "cb3" << endl;
   cbt->setState(VM_THREAD_STATE_READY);
   readyQ[cbt->getPriority()]->push(cbt);
-  cout << "cb4" << endl;
 }//void fileCallback(void* calldata, int result)
 
 
