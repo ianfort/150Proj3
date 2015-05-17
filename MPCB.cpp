@@ -36,14 +36,19 @@ uint8_t* MPCB::allocate(unsigned int spaceSize)
 {
   uint8_t* candidateStart = start;
   vector<MemBlock>::iterator newBlockItr;
+  cout << "Calling allocate from MPCB " << id << ", starting at " << (unsigned int)start <<
+          ", of size " << size << ".\n";
   
   if (allocated->empty())
   {
     if (spaceSize <= size)
     {
       allocated->push_back(MemBlock(candidateStart, spaceSize));
+      cout << "Placed MemBlock into empty vector.\n";
+      cout << "Start: " << (unsigned int)allocated->back().getStart() << ", Size: " << spaceSize << endl;
       return allocated->back().getStart();
     } // If spaceSize is smaller or equal in size to the memory pool.
+    cout << "Empty, and allocation failed\n";
     return NULL;
   } // If no space allocated yet
   else
@@ -54,6 +59,8 @@ uint8_t* MPCB::allocate(unsigned int spaceSize)
       if (spaceSize <= (unsigned int)((*itr).getStart() - candidateStart))
       {
         newBlockItr = allocated->insert(itr, MemBlock(candidateStart, spaceSize));
+	cout << "Inserted MemBlock into vector.\n";
+        cout << "Start: " << (unsigned int)(*newBlockItr).getStart() << ", Size: " << spaceSize << endl;
         return (*newBlockItr).getStart();
       }
       
@@ -64,9 +71,11 @@ uint8_t* MPCB::allocate(unsigned int spaceSize)
   if ( spaceSize <= (unsigned int)((start + size) - candidateStart) )
   {
     allocated->push_back(MemBlock(candidateStart, spaceSize));
+    cout << "Pushed MemBlock onto back of vector.\n";
+    cout << "Start: " << (unsigned int)allocated->back().getStart() << ", Size: " << spaceSize << endl;
     return allocated->back().getStart();
   }
-  
+  cout << "Not empty, and allocation failed.\n";
   return NULL;
 }
 

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <cstddef>
 #include <cassert>
+#include <iostream>
 
 #include "MemBlock.h"
 
