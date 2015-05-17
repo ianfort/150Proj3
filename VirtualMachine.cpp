@@ -51,7 +51,7 @@ TVMStatus VMStart(int tickms, TVMMemorySize heapsize, int machinetickms, TVMMemo
   // Create heap.
   heap = new uint8_t[heapsize];
   pools = new vector<MPCB*>;
-  pools->push_back(new MPCB(heap, heapsize));
+   pools->push_back(new MPCB(heap, heapsize));
 
   mainThread = new Thread;
   mainThread->setPriority(VM_THREAD_PRIORITY_NORMAL);
@@ -534,15 +534,18 @@ TVMStatus VMThreadTerminate(TVMThreadID thread)
 TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void **pointer)
 {
   MachineSuspendSignals(&sigs);
-  
-  MPCB* foundPool;
-  uint8_t* allocatedStart;
-  
+
   if (!pointer || size == 0)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
+  
+
+  TVMMemorySize sz = (size+0x3F)&(~0x3F);
+
+  MPCB* foundPool;
+  uint8_t* allocatedStart;
   
   foundPool = findMemPool(memory);
   
@@ -552,7 +555,7 @@ TVMStatus VMMemoryPoolAllocate(TVMMemoryPoolID memory, TVMMemorySize size, void 
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }
   
-  allocatedStart = foundPool->allocate(size);
+  allocatedStart = foundPool->allocate(sz);
   if (!allocatedStart)
   {
     MachineResumeSignals(&sigs);
