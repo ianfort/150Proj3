@@ -137,17 +137,23 @@ TVMStatus VMFileWrite(int filedescriptor, void *data, int *length)
   char* localdata = new char[*length + 1];
   strcpy(localdata, (char*)data);
   char *writeloc;
+  TVMStatus test = VM_STATUS_FAILURE;
   if (!data || !length)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to have NULL pointers for where we put the data
-  while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&writeloc))
+  while (test != VM_STATUS_SUCCESS)
+  {
+    MachineResumeSignals(&sigs);
+    test = VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&writeloc);
+    MachineSuspendSignals(&sigs);
     scheduler();//try to allocate until it works
+  }
   for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
   {
-    memcpy(sharebase, &localdata[i*512], min(lenleft, 512));
-    MachineFileWrite(filedescriptor, sharebase, min(lenleft, 512), fileCallback, (void*)tr);
+    memcpy(writeloc, &localdata[i*512], min(lenleft, 512));
+    MachineFileWrite(filedescriptor, writeloc, min(lenleft, 512), fileCallback, (void*)tr);
     tr->setState(VM_THREAD_STATE_WAITING);
     scheduler();
     byteswritten += tr->getcd();
@@ -194,13 +200,19 @@ TVMStatus VMFileRead(int filedescriptor, void *data, int *length)
   int lenleft = *length;
   int bytesread = 0;
   char *readloc;
+  TVMStatus test = VM_STATUS_FAILURE;
   if (!data || !length)
   {
     MachineResumeSignals(&sigs);
     return VM_STATUS_ERROR_INVALID_PARAMETER;
   }//not allowed to be NULL pointers
-  while (VM_STATUS_SUCCESS != VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&readloc))
+  while (test != VM_STATUS_SUCCESS)
+  {
+    MachineResumeSignals(&sigs);
+    test = VMMemoryPoolAllocate(shareid, min(*length, 512), (void**)&readloc);
+    MachineSuspendSignals(&sigs);
     scheduler();//try to allocate until it works
+  }
   for (int i = 0; lenleft >= 0 ; i++, lenleft -= 512)
   {
     MachineFileRead(filedescriptor, readloc, min(lenleft, 512), fileCallback, (void*)tr);
